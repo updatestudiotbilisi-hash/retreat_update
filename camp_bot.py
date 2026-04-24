@@ -608,8 +608,8 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     set_state(ctx, S_MAIN)
     await update.message.reply_text(
         "Привет! 👋\n\n"
-        "Это бот для записи на кэмпы *UPDATE* в горах Грузии.\n\n"
-        "Здесь вы можете:\n"
+        "Менеджер *UPDATE* скоро свяжется с вами.\n\n"
+        "А пока вы можете воспользоваться ботом:\n"
         "• Узнать о программе и ценах\n"
         "• Посмотреть варианты номеров с фото\n"
         "• Оставить заявку за 2 минуты\n\n"

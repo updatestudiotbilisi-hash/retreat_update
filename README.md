@@ -1,4 +1,4 @@
-# sol_sveta_bot
+# retreat_update
 
 Telegram-бот для заявок на `Wellness Camp` и `Family Camp`.
 

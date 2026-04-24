@@ -4,9 +4,10 @@
 ║          Wellness Camp · Family Camp · 2026                  ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ:                                       ║
-║  TELEGRAM_TOKEN     — '8774891859:AAEM2lB_kGYMorhZoTuYV24fG7BvrbQA76w'                       ║
-║  MANAGER_GROUP_ID   — -5181762824                            ║
-║ 
+║  TELEGRAM_TOKEN     — токен бота из BotFather                ║
+║  MANAGER_GROUP_ID   — chat_id группы менеджеров              ║
+║  PORT               — порт healthcheck для web-деплоя        ║
+║
 ║                                                              ║
 ║  Бот умеет:                                                  ║
 ║  ✅ Рассказывать о двух кэмпах с полным описанием            ║
@@ -18,15 +19,51 @@
 """
 
 import os
+import threading
 from datetime import datetime
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, filters, ContextTypes
 )
 
 # ─── CONFIG ───────────────────────────────────────────────────
-TELEGRAM_TOKEN   = os.environ["TELEGRAM_TOKEN"]
-MANAGER_GROUP_ID = int(os.environ["MANAGER_GROUP_ID"])
+def require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+def start_healthcheck_server() -> None:
+    """Поднимает простой HTTP healthcheck для web-деплоя."""
+    port = os.getenv("PORT")
+    if not port:
+        return
+
+    class HealthHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            body = b"ok"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format, *args):
+            return
+
+    server = ThreadingHTTPServer(("0.0.0.0", int(port)), HealthHandler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    print(f"Healthcheck server is listening on port {port}")
+
+
+TELEGRAM_TOKEN = require_env("TELEGRAM_TOKEN")
+
+try:
+    MANAGER_GROUP_ID = int(require_env("MANAGER_GROUP_ID"))
+except ValueError as exc:
+    raise RuntimeError("MANAGER_GROUP_ID must be an integer chat_id") from exc
 
 # ─── STATES ───────────────────────────────────────────────────
 S_MAIN      = "main"
@@ -860,6 +897,7 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ─── ЗАПУСК ───────────────────────────────────────────────────
 def main():
+    start_healthcheck_server()
     app = Application.builder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("menu",  cmd_start))

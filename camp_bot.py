@@ -21,6 +21,7 @@
 import os
 import threading
 from datetime import datetime
+from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -457,34 +458,41 @@ async def send_lead(ctx: ContextTypes.DEFAULT_TYPE, form: dict, user):
     camp_emoji = "🏕" if form.get("camp") == "wellness" else "👨‍👩‍👧"
     camp_name  = "WELLNESS CAMP" if form.get("camp") == "wellness" else "FAMILY CAMP"
 
+    def safe(value: object) -> str:
+        return escape(str(value or "—"))
+
     lines = [
-        f"🔔 *Новая заявка — {camp_emoji} {camp_name}*",
+        f"<b>🔔 Новая заявка — {camp_emoji} {camp_name}</b>",
         "━━━━━━━━━━━━━━━━━━━━━━",
-        f"👤 *Имя:* {form.get('name', '—')}",
-        f"📱 *Контакт:* {form.get('contact', '—')}",
-        f"👥 *Состав/количество:* {form.get('people', '—')}",
-        f"🛏 *Номер:* {form.get('room', '—')}",
+        f"<b>👤 Имя:</b> {safe(form.get('name'))}",
+        f"<b>📱 Контакт:</b> {safe(form.get('contact'))}",
+        f"<b>👥 Состав/количество:</b> {safe(form.get('people'))}",
+        f"<b>🛏 Номер:</b> {safe(form.get('room'))}",
     ]
 
     if form.get("camp") == "family" and form.get("dates"):
-        lines.append(f"📅 *Даты:* {form['dates']}")
+        lines.append(f"<b>📅 Даты:</b> {safe(form.get('dates'))}")
 
-    lines.append(f"➕ *Опции:* {form.get('options', '—')}")
+    lines.append(f"<b>➕ Опции:</b> {safe(form.get('options'))}")
 
     if form.get("comment"):
-        lines.append(f"💬 *Комментарий:* {form['comment']}")
+        lines.append(f"<b>💬 Комментарий:</b> {safe(form.get('comment'))}")
 
     lines.append("━━━━━━━━━━━━━━━━━━━━━━")
 
-    tg_link = f"@{user.username}" if user.username else f"[написать](tg://user?id={user.id})"
-    lines.append(f"🔗 *Telegram:* {tg_link}")
-    lines.append(f"🆔 *User ID:* `{user.id}`")
-    lines.append(f"🕐 {datetime.now().strftime('%d.%m.%Y  %H:%M')}")
+    tg_link = (
+        f"@{escape(user.username)}"
+        if user.username
+        else f'<a href="tg://user?id={user.id}">написать</a>'
+    )
+    lines.append(f"<b>🔗 Telegram:</b> {tg_link}")
+    lines.append(f"<b>🆔 User ID:</b> <code>{user.id}</code>")
+    lines.append(escape(datetime.now().strftime('%d.%m.%Y  %H:%M')))
 
     await ctx.bot.send_message(
         MANAGER_GROUP_ID,
         "\n".join(lines),
-        parse_mode="Markdown",
+        parse_mode="HTML",
     )
 
 # ─── ОБРАБОТЧИКИ ──────────────────────────────────────────────
@@ -871,15 +879,20 @@ async def handle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         set_state(ctx, S_WELLNESS if c == "wellness" else S_FAMILY)
         ctx.user_data.pop("form", None)
 
-        confirm_text = (
-            "✅ *Заявка принята!*\n\n"
-            f"Спасибо! Ваша заявка на *{camp_name}* передана менеджеру.\n\n"
-            f"Мы свяжемся с вами в ближайшее время и пришлём все детали.\n\n"
-            f"Можно также написать напрямую: {contact}\n\n"
-            "_До встречи в горах Грузии! 🏔_"
-        )
-        if not lead_sent:
-            confirm_text += "\n\n⚠️ _Если с вами не свяжутся в течение дня — напишите напрямую._"
+        if lead_sent:
+            confirm_text = (
+                "✅ *Заявка принята!*\n\n"
+                f"Спасибо! Ваша заявка на *{camp_name}* передана менеджеру.\n\n"
+                f"Мы свяжемся с вами в ближайшее время и пришлём все детали.\n\n"
+                f"Можно также написать напрямую: {contact}\n\n"
+                "_До встречи в горах Грузии! 🏔_"
+            )
+        else:
+            confirm_text = (
+                "⚠️ *Заявка сохранена, но не отправлена менеджеру автоматически.*\n\n"
+                f"Пожалуйста, напишите напрямую: {contact}\n\n"
+                "Мы уже проверяем техническую ошибку."
+            )
 
         await update.message.reply_text(
             confirm_text, parse_mode="Markdown", reply_markup=menu_kb
